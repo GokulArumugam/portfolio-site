@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
 };
 
 const withMDX = createMDX({
-  options: {},
+  // Turbopack requires serializable loader options: plugin as string, not import
+  options: { remarkPlugins: ["remark-gfm"] },
 });
 
 export default withMDX(nextConfig);

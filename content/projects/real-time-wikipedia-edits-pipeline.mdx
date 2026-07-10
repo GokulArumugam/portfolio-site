@@ -1,52 +1,73 @@
 import ArchitectureDiagram from "@/components/ArchitectureDiagram";
+import ChaosDemo from "@/components/ChaosDemo";
 import DuckDBQuery from "@/components/DuckDBQuery";
 
 export const metadata = {
   title: "Real-time Wikipedia Edits Pipeline",
-  description: "A streaming pipeline for making a noisy public event feed useful, queryable, and replayable.",
-  metric: "[scale metric: events/min]",
+  description: "A local-first lakehouse that turns Wikimedia's live event stream into queryable, replayable tables.",
+  metric: "sub-minute freshness",
   kind: "project",
 };
 
 # Real-time Wikipedia Edits Pipeline
 
+A live Wikimedia recent-changes stream, made dependable enough to query. The stack runs on one laptop, preserves raw events for replay, and keeps its cloud path deliberately boring: Kafka API and S3 API in local clothes.
+
 ## Problem
 
-Wikimedia publishes a continuous stream of edit events. The system needs to ingest that stream, preserve the raw record for replay, and make a well-shaped version available to downstream analysts with bounded freshness.
+Wikimedia's `recentchange` SSE feed is public, noisy, and continuous. That is useful only if a reconnect does not create a gap, a duplicate does not inflate an aggregate, malformed upstream payloads do not leak into a dashboard, and an interrupted streaming batch can restart without hand repair.
+
+The target was an honest freshness SLO of two minutes—not sub-second latency nobody consumes—while preserving enough raw data to rebuild every aggregate under a changed policy.
 
 ## Architecture
 
-<ArchitectureDiagram
-  ariaLabel="Wikipedia event stream architecture"
-  nodes={[
-    { id: "stream", type: "input", position: { x: 0, y: 105 }, data: { label: "Wikimedia stream" } },
-    { id: "ingest", position: { x: 190, y: 105 }, data: { label: "Stream ingest" } },
-    { id: "lake", position: { x: 385, y: 35 }, data: { label: "Raw event lake" } },
-    { id: "model", position: { x: 385, y: 185 }, data: { label: "Event model" } },
-    { id: "serve", type: "output", position: { x: 575, y: 185 }, data: { label: "Analytics tables" } },
-  ]}
-  edges={[
-    { id: "e1", source: "stream", target: "ingest", animated: false },
-    { id: "e2", source: "ingest", target: "lake" },
-    { id: "e3", source: "ingest", target: "model" },
-    { id: "e4", source: "model", target: "serve" },
-  ]}
-/>
+<ArchitectureDiagram />
 
-Raw events land first, then a normalization step produces query-friendly records while retaining an immutable replay source.
+The ingest service resumes SSE with `Last-Event-ID`, stamps `ingested_at`, and writes raw JSON keyed by wiki. Spark validates and routes bad records to a DLQ before appending valid events to bronze Iceberg. It then applies event-time windows and watermark-bounded deduplication to create gold tables for Grafana. Prometheus supplies the freshness signal; MinIO and the Iceberg REST catalog make the lakehouse portable rather than local-only.
 
-## Key Decisions
+## Key decisions
 
-- Treat the source payload as an append-only contract, not a database schema.
-- Keep event time and processing time separate for late-arrival analysis.
-- Make idempotency explicit at every boundary so replays are routine rather than risky.
+1. **[ADR-0001: local-first Docker Compose](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0001-local-first-docker-compose.md).** The entire system must be reproducible without a cloud bill. Kafka and S3-compatible choices preserve a documented AWS path without pretending a laptop demonstrates multi-node failure modes.
+2. **[ADR-0002: Redpanda over Kafka](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0002-redpanda-over-kafka.md).** Redpanda is light enough to coexist with Spark and observability services locally, while its Kafka API leaves producers, consumers, and a future MSK move unchanged.
+3. **[ADR-0003: Spark Structured Streaming over Flink](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0003-spark-structured-streaming-over-flink.md).** Spark's micro-batches clear the two-minute SLO with room to spare and pair with Iceberg's reference-quality sink semantics. The trade-off is a deliberate latency floor, not a hidden limitation.
+4. **[ADR-0004: Iceberg on MinIO](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0004-iceberg-on-minio.md).** Iceberg brings atomic snapshots, schema evolution, time travel, and engine-neutral tables. MinIO exercises the real S3 code path locally; compaction and metadata expiry are first-class maintenance work.
+5. **[ADR-0005: stage-by-stage delivery semantics](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0005-delivery-semantics.md).** “Exactly-once” is not a system label. Each boundary has a stated contract, and the result is effectively-once gold tables with a known residual risk.
+6. **[ADR-0006: two-minute event-time watermark](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0006-late-data-and-watermarking.md).** A visible late-arrivals table makes the freshness/completeness trade-off inspectable. Bronze retains all events, so aggregates are always rebuildable with a different policy.
 
-<DuckDBQuery initialQuery={"SELECT wiki, count(*) AS edits\nFROM normalized_edits\nGROUP BY 1\nORDER BY 2 DESC;"} />
+## Delivery semantics
 
-## Failure Modes
+| Hop | Delivery contract | Mechanism |
+| --- | --- | --- |
+| Wikimedia SSE → ingest | At-least-once | `Last-Event-ID` resumes the feed after reconnects; overlap is possible, gaps are avoided within source retention. |
+| Ingest → Redpanda | Idempotent producer, `acks=all` | Producer acknowledgements and idempotence prevent duplicates inside a producer session; a restart can still replay. |
+| Redpanda → Spark → Iceberg | Effectively-once | Spark checkpoints offsets and Iceberg's native sink deduplicates a replayed `(queryId, epochId)` snapshot commit. |
+| Bronze → silver/gold | Watermark-bounded deduplication | A two-minute event-time watermark deduplicates on Wikimedia `meta_id`, covering SSE overlap and producer-restart duplicates while keeping state bounded. |
 
-The design needs clear behavior for upstream disconnects, duplicate delivery, schema drift, and consumers falling behind. Each is observable, replayable, and isolated from the raw event archive.
+## Failure modes and recovery
 
-## Cost
+| Failure | What happens | Recovery |
+| --- | --- | --- |
+| Ingest process crash | The stream resumes from `Last-Event-ID`; an overlap may be re-emitted. | Restart automatically; downstream `meta_id` dedup removes the overlap. |
+| Redpanda unavailable | Ingest retries with backoff and retains its source position. | Broker recovery lets the producer catch up without discarding source events. |
+| Spark killed mid-batch | The checkpoint is not advanced and an incomplete Iceberg commit is not visible. | Restart Spark; it replays the batch from checkpoint and commits one atomic snapshot. |
+| Upstream schema drift | The DQ gate rejects malformed required fields instead of merely warning. | Inspect the DLQ, evolve the Iceberg schema, then replay retained raw events. |
+| MinIO or catalog outage | Spark fails the batch before checkpoint progress. | Restore the dependency and restart; Redpanda retention and checkpointing prevent loss. |
+| Late event beyond watermark | Bronze still records it, but the settled window excludes it and increments a late-arrival counter. | Monitor the counter; rebuild from bronze if the watermark policy changes. |
 
-The primary cost lever is retention: inexpensive object storage keeps the canonical raw stream, while shorter-lived serving tables support fast exploration. Compute scales with sustained event volume and replay frequency.
+## Chaos demo: kill a streaming batch, then prove the outcome
+
+<ChaosDemo />
+
+The recording sends `SIGKILL` to Spark in the middle of a batch. Bronze grows from **70,233** to **74,015** rows across the kill; the duplicate check reports **total = 74,015** and **distinct = 74,015**. Freshness recovers in **under 120 seconds**, the dashboard SLO. The point is not that a process cannot die—it is that recovery produces a checkable data result.
+
+> **Verified numbers.** Steady-state end-to-end freshness holds **sub-minute** against the **120s** SLO with 3–17s batch durations on a 60s trigger (~4× headroom). An earlier 15s-trigger configuration measured 12.4s fresh — then degraded to ~8.5 minutes after three hours as streaming state grew; the fix (longer trigger + RocksDB state store) is documented in the repo and the blog post. Compaction reduced bronze from **1,334 → 72 files** and **14.3MB → 4.9MB**. In the recorded chaos demo, rows grew **11,937 → 18,032** across a SIGKILL with **zero duplicates** (20,418 = 20,418) and freshness recovered to **28s**. A cold start is reproducible with `make up && make spark-up && make verify-spark`.
+
+## Cost and portability
+
+The local demonstration costs **$0/month by design**. Redpanda speaks Kafka's API and MinIO speaks the S3 API, so AWS is a configuration change—MSK or Kafka, S3, and a managed catalog/observability choice—not an application rewrite. Laptop throughput and process-level chaos are presented as such; they are not substituted for a claim about production scale.
+
+## Try the data
+
+The exported Parquet artifacts execute entirely in your browser with DuckDB-WASM. Start with a preset or edit the SQL directly.
+
+<DuckDBQuery />

@@ -21,7 +21,7 @@ export default function HomePage() {
           {projects.map((project) => (
             <Link className="content-card" href={`/projects/${project.slug}`} key={project.slug}>
               <p className="card-label">Project</p>
-              <h3>{project.metadata.title}</h3>
+              <h3>{project.slug === "real-time-wikipedia-edits-pipeline" ? "Sub-minute freshness on a live stream, sustained — $0/month" : project.metadata.title}</h3>
               <p>{project.metadata.description}</p>
               <div className="metric">{project.metadata.metric}</div>
             </Link>

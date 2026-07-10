@@ -1,0 +1,59 @@
+export const metadata = {
+  title: "A real-time lakehouse on a laptop: streaming Wikipedia edits end to end",
+  description: "The failures that shaped a local-first Wikimedia streaming pipeline.",
+  date: "2026-07-10",
+  kind: "post",
+  owner: "Gokul",
+};
+
+# A real-time lakehouse on a laptop: streaming Wikipedia edits end to end
+
+By Gokul Arumugam
+
+I wanted a small pipeline with real streaming failure modes, not a diagram that became impressive only after the words “exactly once” were added to it. The result is a local lakehouse that reads Wikimedia recent changes over SSE, lands raw events in Redpanda, processes them with Spark Structured Streaming, and writes Iceberg tables on MinIO for Grafana and browser-side exploration.
+
+The happy path came together quickly. The useful work was in the failures that made the happy path untrustworthy.
+
+## The image that disappeared during the build
+
+The original Spark service used `bitnami/spark`. In the middle of building the stack, that image vanished from Docker Hub. It was a sharp reminder that “docker compose up” is not the same thing as reproducibility when a public tag is an undeclared dependency.
+
+I replaced the assumption with an image and configuration I could inspect and pin. That did not make container registries permanent, but it made the dependency explicit and kept the project honest about what its one-command local demo relies on. It also reinforced the local-first ADR: the point is a reproducible demonstration, not a fragile imitation of a managed platform.
+
+## The catalog that forgot itself when idle
+
+The Iceberg REST catalog fixture initially used in-memory SQLite. It looked fine under a sustained run, then the connection pool went idle and the database evaporated. The next catalog request returned 500s even though MinIO still held the data files.
+
+That failure was subtle because it sat between object storage and Spark: the table data was there, but the metadata service had forgotten how to find it. The fix was to give the catalog durable state rather than treating the fixture as a stateless convenience. More importantly, I changed the recovery expectation: a catalog outage must fail a Spark micro-batch before its checkpoint advances. Once it returns, replay from the checkpoint is safe. A lakehouse is metadata as much as it is parquet.
+
+## Watermarks are not a reusable decoration
+
+I wanted to deduplicate Wikimedia event IDs and then aggregate by event time. My first pass redefined the watermark after `dropDuplicatesWithinWatermark`. Spark 3.5 forbids that plan shape. The driver crash-looped immediately.
+
+The restriction is reasonable: a stateful streaming plan cannot pretend each downstream operator has an unrelated watermark history. I moved the watermark definition to the correct point in the plan and treated it as a single, deliberate policy: two minutes of event-time lateness, shared by deduplication and windows. Events beyond it remain in bronze and increment a late-arrivals metric rather than disappearing from the story.
+
+That changed how I talk about “freshness.” A two-minute watermark does not mean a settled aggregate is two minutes fresh in every case; it is part of the completeness/freshness budget. The dashboard makes the late data visible so that it can be challenged with data rather than defended with a slogan.
+
+## The verification step that killed the system it was verifying
+
+The first `make verify-spark` started another JVM while the streaming driver was already running in the same cgroup. On a laptop-sized memory limit, the verification JVM OOM-killed the driver. The check itself caused the failure it was supposed to detect.
+
+I split the operational jobs so maintenance and verification do not compete with the streaming process for a single constrained heap. The current verification samples Iceberg growth and freshness without casually creating a second heavyweight Spark driver in the same cgroup. It is a less glamorous fix than tuning a query, but it is exactly the sort of resource boundary a streaming system has to respect.
+
+## The pipeline that slowly fell behind
+
+The nastiest problem showed up only after three hours of continuous running. Freshness quietly degraded from 12 seconds to over eight minutes — no crash, no error, nothing in the logs. Batch durations told the story: 50–55 seconds against a 15-second trigger. Six streaming queries were each carrying growing state (deduplication keys, open windows — the 10-minute top-pages window with per-title cardinality was the heaviest) on the default in-memory state store, inside a 1 GB heap. Every batch took longer than the trigger interval, so the backlog compounded.
+
+Two changes fixed it: a 60-second trigger (fewer, larger batches — the 2-minute SLO never needed 15-second cadence anyway) and swapping the HDFS-backed state store for RocksDB, which keeps state off-heap. Batch durations dropped to 3–17 seconds — roughly 4× headroom — and freshness has held sub-minute since. The lesson: a streaming job that passes verification at minute five can still be unsustainable at hour three. Watch batch duration versus trigger interval, not just output freshness — it is the leading indicator.
+
+## What “effectively once” means here
+
+The source-to-ingest hop is at-least-once: `Last-Event-ID` resumes after a disconnect, so overlap is possible. The producer uses idempotence and `acks=all`, which protects a producer session but does not erase cross-restart replays. Spark stores Kafka offsets in its checkpoint and commits Iceberg snapshots atomically; a replayed `(queryId, epochId)` does not create another visible sink result. Finally, a two-minute deduplication window uses Wikimedia `meta_id`.
+
+That composition is why I call the gold tables effectively-once rather than claiming a magical end-to-end guarantee. I can kill Spark mid-batch, restart it, and compare total rows with distinct event IDs. The recorded run reaches 74,015 for both counts after recovery. That is a useful claim because it can fail visibly.
+
+## Why I kept it on a laptop
+
+The project is intentionally $0/month at rest. Redpanda exposes Kafka's API; MinIO exercises the S3 path; Iceberg keeps tables open to more than one engine. Moving to AWS changes endpoints, credentials, and service ownership—not the data contract or every producer and consumer.
+
+There are limits. A single laptop does not demonstrate broker quorum loss, cross-AZ latency, or cloud-scale throughput. It does demonstrate the things I wanted to practice in public: resume behavior, checkpoint semantics, data-quality isolation, late-event policy, compaction, and the uncomfortable ways resource limits turn a passing demo into a crash loop.

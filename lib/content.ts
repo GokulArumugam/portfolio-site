@@ -7,6 +7,9 @@ import WikipediaEditsPipeline, {
 import DuckDBBenchmark, {
   metadata as duckdbMetadata,
 } from "@/content/posts/duckdb-spark-polars-benchmark.mdx";
+import WikiStreamPipeline, {
+  metadata as wikiStreamMetadata,
+} from "@/content/posts/building-wiki-stream-pipeline.mdx";
 import type { ComponentType } from "react";
 
 export interface ContentMetadata {
@@ -37,6 +40,11 @@ const projects: ContentEntry[] = [
 ];
 
 const posts: ContentEntry[] = [
+  {
+    slug: "building-wiki-stream-pipeline",
+    metadata: wikiStreamMetadata,
+    Content: WikiStreamPipeline,
+  },
   {
     slug: "duckdb-spark-polars-benchmark",
     metadata: duckdbMetadata,
