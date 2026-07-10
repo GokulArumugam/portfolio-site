@@ -6,7 +6,7 @@ Next.js (App Router) + Tailwind + MDX. Projects are written as public design doc
 
 ## Related repos
 - [wiki-stream-pipeline](https://github.com/GokulArumugam/wiki-stream-pipeline) — real-time Wikipedia edits pipeline (flagship)
-- payments-reconciliation — coming this weekend
+- [payments-reconciliation](https://github.com/GokulArumugam/payments-reconciliation) — reconciliation engine with a built-in correctness oracle
 
 ## Develop
 ```bash

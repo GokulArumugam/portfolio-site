@@ -24,7 +24,7 @@ npm run build
 npm run start
 ```
 
-## Exact next steps
+
 
 1. Wire `DuckDBQuery` to `@duckdb/duckdb-wasm`: initialize a worker/database in the browser, execute SQL, and render results/errors.
 2. Add an event-replay animation mode to `ArchitectureDiagram`, driven by timestamped sample events and respecting reduced-motion preferences.
