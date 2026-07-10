@@ -96,6 +96,25 @@ footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--border); color: v
 .replay-counts b { color: var(--accent); }
 
 .duckdb-query { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
+.recon-demo { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
+.recon-demo-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.recon-demo-kicker { margin: 0; color: var(--accent); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.recon-demo h3 { margin: 0.2rem 0 0; font-size: 1.1rem; }
+.recon-demo h4 { margin: 1.25rem 0 0.5rem; font-size: 0.9rem; }
+.recon-sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem 1rem; margin-top: 1rem; }
+.recon-sliders label { display: grid; grid-template-columns: minmax(0, 1fr) 7rem 2rem; gap: 0.55rem; align-items: center; color: #c4cdd6; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; }
+.recon-sliders input { accent-color: var(--accent); }
+.recon-sliders output { color: var(--accent); text-align: right; }
+.recon-demo-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+.recon-demo small { color: var(--muted); }
+.recon-demo button { padding: 0.5rem 0.85rem; border: 1px solid #527469; border-radius: 0.4rem; background: #203b34; color: var(--accent); font-weight: 700; cursor: pointer; white-space: nowrap; }
+.recon-demo button:hover { border-color: var(--accent); background: #27483e; }
+.recon-demo button:disabled { cursor: wait; opacity: 0.65; }
+.recon-results { margin-top: 1rem; }
+.recon-headline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; padding: 0.85rem; border: 1px solid #36564c; border-radius: 0.5rem; background: #14251f; }
+.recon-headline strong { color: var(--accent); font-size: 1.65rem; letter-spacing: -0.04em; }
+.recon-headline span { color: #c4cdd6; font-size: 0.85rem; }
+.recon-headline small { margin-left: auto; }
 .duckdb-query-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
 .duckdb-query label { display: block; margin-bottom: 0.65rem; color: var(--muted); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .database-status { color: var(--muted); font-size: 0.75rem; }
@@ -124,11 +143,14 @@ footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--border); color: v
   .listing-item { grid-template-columns: 1fr auto; }
   .listing-meta { grid-column: 1; }
   .prose table { display: block; overflow-x: auto; }
-  .architecture-toolbar, .duckdb-query-heading { align-items: flex-start; flex-direction: column; }
+  .architecture-toolbar, .duckdb-query-heading, .recon-demo-heading, .recon-demo-actions { align-items: flex-start; flex-direction: column; }
   .architecture-layout { grid-template-columns: 1fr; }
   .architecture-map { min-height: 22rem; }
   .architecture-node { width: 4.6rem; min-height: 3rem; padding: 0.32rem; }
   .architecture-node strong { font-size: 0.56rem; }
   .architecture-node span { font-size: 0.5rem; }
   .architecture-node.side-node { width: 5rem; }
+  .recon-sliders { grid-template-columns: 1fr; }
+  .recon-sliders label { grid-template-columns: minmax(0, 1fr) 6rem 2rem; }
+  .recon-headline small { width: 100%; margin-left: 0; }
 }
