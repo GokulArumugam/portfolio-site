@@ -1,0 +1,52 @@
+import ArchitectureDiagram from "@/components/ArchitectureDiagram";
+import DuckDBQuery from "@/components/DuckDBQuery";
+
+export const metadata = {
+  title: "Payments Reconciliation Engine",
+  description: "A durable matching workflow for turning processor files and ledger entries into an auditable daily close.",
+  metric: "[scale metric: records/day]",
+  kind: "project",
+};
+
+# Payments Reconciliation Engine
+
+## Problem
+
+Processor settlements, internal ledger records, fees, and reversals rarely arrive in the same shape or at the same time. The system needs to identify what is matched, what needs review, and what can safely be closed.
+
+## Architecture
+
+<ArchitectureDiagram
+  ariaLabel="Payments reconciliation architecture"
+  nodes={[
+    { id: "processor", type: "input", position: { x: 0, y: 35 }, data: { label: "Processor files" } },
+    { id: "ledger", type: "input", position: { x: 0, y: 190 }, data: { label: "Ledger events" } },
+    { id: "stage", position: { x: 190, y: 110 }, data: { label: "Staging models" } },
+    { id: "match", position: { x: 385, y: 110 }, data: { label: "Match engine" } },
+    { id: "close", type: "output", position: { x: 575, y: 110 }, data: { label: "Close + exceptions" } },
+  ]}
+  edges={[
+    { id: "e1", source: "processor", target: "stage" },
+    { id: "e2", source: "ledger", target: "stage" },
+    { id: "e3", source: "stage", target: "match" },
+    { id: "e4", source: "match", target: "close" },
+  ]}
+/>
+
+The reconciliation model tracks each source record through staging, deterministic matching, exception handling, and close.
+
+## Key Decisions
+
+- Model matching as versioned rules, not one opaque query.
+- Preserve links from every match back to its source evidence.
+- Separate automatic closure from human-reviewed exceptions.
+
+<DuckDBQuery initialQuery={"SELECT match_status, count(*)\nFROM reconciliation_runs\nGROUP BY 1;"} label="Inspect match outcomes" />
+
+## Failure Modes
+
+Expected failures include duplicate files, partial settlement delivery, changed processor layouts, and late reversals. Runs are idempotent, input snapshots are retained, and close is guarded by explicit completeness checks.
+
+## Cost
+
+The workload is intentionally batch-oriented. Object storage holds source artifacts, while warehouse spend is controlled through incremental partitions and a bounded review queue.

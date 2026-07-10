@@ -1,0 +1,52 @@
+import ArchitectureDiagram from "@/components/ArchitectureDiagram";
+import DuckDBQuery from "@/components/DuckDBQuery";
+
+export const metadata = {
+  title: "Real-time Wikipedia Edits Pipeline",
+  description: "A streaming pipeline for making a noisy public event feed useful, queryable, and replayable.",
+  metric: "[scale metric: events/min]",
+  kind: "project",
+};
+
+# Real-time Wikipedia Edits Pipeline
+
+## Problem
+
+Wikimedia publishes a continuous stream of edit events. The system needs to ingest that stream, preserve the raw record for replay, and make a well-shaped version available to downstream analysts with bounded freshness.
+
+## Architecture
+
+<ArchitectureDiagram
+  ariaLabel="Wikipedia event stream architecture"
+  nodes={[
+    { id: "stream", type: "input", position: { x: 0, y: 105 }, data: { label: "Wikimedia stream" } },
+    { id: "ingest", position: { x: 190, y: 105 }, data: { label: "Stream ingest" } },
+    { id: "lake", position: { x: 385, y: 35 }, data: { label: "Raw event lake" } },
+    { id: "model", position: { x: 385, y: 185 }, data: { label: "Event model" } },
+    { id: "serve", type: "output", position: { x: 575, y: 185 }, data: { label: "Analytics tables" } },
+  ]}
+  edges={[
+    { id: "e1", source: "stream", target: "ingest", animated: false },
+    { id: "e2", source: "ingest", target: "lake" },
+    { id: "e3", source: "ingest", target: "model" },
+    { id: "e4", source: "model", target: "serve" },
+  ]}
+/>
+
+Raw events land first, then a normalization step produces query-friendly records while retaining an immutable replay source.
+
+## Key Decisions
+
+- Treat the source payload as an append-only contract, not a database schema.
+- Keep event time and processing time separate for late-arrival analysis.
+- Make idempotency explicit at every boundary so replays are routine rather than risky.
+
+<DuckDBQuery initialQuery={"SELECT wiki, count(*) AS edits\nFROM normalized_edits\nGROUP BY 1\nORDER BY 2 DESC;"} />
+
+## Failure Modes
+
+The design needs clear behavior for upstream disconnects, duplicate delivery, schema drift, and consumers falling behind. Each is observable, replayable, and isolated from the raw event archive.
+
+## Cost
+
+The primary cost lever is retention: inexpensive object storage keeps the canonical raw stream, while shorter-lived serving tables support fast exploration. Compute scales with sustained event volume and replay frequency.

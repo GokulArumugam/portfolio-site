@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0b0d10;
+  --surface: #13171c;
+  --surface-strong: #181e25;
+  --border: #28313b;
+  --foreground: #e8edf2;
+  --muted: #9aa7b5;
+  --accent: #8be0c5;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--background); }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.6;
+}
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--accent); }
+
+.site-shell { width: min(100% - 2rem, 72rem); margin: 0 auto; }
+.site-header { display: flex; align-items: center; justify-content: space-between; padding: 1.5rem 0; border-bottom: 1px solid var(--border); }
+.wordmark { font-weight: 700; letter-spacing: -0.02em; }
+.site-header nav { display: flex; gap: 1.25rem; color: var(--muted); font-size: 0.95rem; }
+main { padding: 5rem 0 6rem; }
+footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.875rem; }
+
+.eyebrow { color: var(--accent); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.hero { max-width: 52rem; }
+.hero h1, .page-title { margin: 0.75rem 0 1rem; font-size: clamp(2.8rem, 8vw, 5.5rem); line-height: 0.98; letter-spacing: -0.055em; }
+.hero p { max-width: 42rem; color: var(--muted); font-size: clamp(1.15rem, 2vw, 1.4rem); }
+.section { margin-top: 5rem; }
+.section-heading { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.25rem; }
+.section-heading h2 { margin: 0; font-size: 1.15rem; }
+.subtle-link { color: var(--accent); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.content-card { min-height: 15rem; padding: 1.5rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); transition: border-color 160ms ease, background 160ms ease; }
+.content-card:hover { background: var(--surface-strong); border-color: #4a5c6d; color: var(--foreground); }
+.card-label { margin: 0 0 2rem; color: var(--accent); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.content-card h3 { margin: 0; font-size: 1.35rem; line-height: 1.2; letter-spacing: -0.025em; }
+.content-card p { color: var(--muted); }
+.metric { margin-top: 2rem; color: var(--accent); font-size: 1.5rem; font-weight: 750; letter-spacing: -0.03em; }
+
+.listing { display: grid; gap: 0.75rem; margin-top: 2rem; }
+.listing-item { display: grid; grid-template-columns: 10rem 1fr auto; gap: 1rem; align-items: center; padding: 1.15rem 0; border-bottom: 1px solid var(--border); }
+.listing-item:first-child { border-top: 1px solid var(--border); }
+.listing-item p { margin: 0.35rem 0 0; color: var(--muted); }
+.listing-meta { color: var(--muted); font-size: 0.82rem; }
+.arrow { color: var(--accent); }
+
+.prose { max-width: 48rem; }
+.prose h1 { margin: 0.75rem 0 1rem; font-size: clamp(2.5rem, 6vw, 4rem); line-height: 1.05; letter-spacing: -0.045em; }
+.prose h2 { margin-top: 3rem; font-size: 1.4rem; letter-spacing: -0.025em; }
+.prose p, .prose li { color: #c4cdd6; }
+.prose code { padding: 0.15em 0.35em; border-radius: 0.25rem; background: var(--surface-strong); color: var(--accent); }
+.prose pre { overflow-x: auto; padding: 1rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); }
+
+.flow-canvas { height: 19rem; margin: 1.5rem 0; overflow: hidden; border: 1px solid var(--border); border-radius: 0.75rem; background: #0e1216; }
+.duckdb-query { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
+.duckdb-query label { display: block; margin-bottom: 0.65rem; color: var(--muted); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.duckdb-query textarea { width: 100%; min-height: 7rem; resize: vertical; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.4rem; background: #0d1014; color: var(--foreground); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+.duckdb-query-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; }
+.duckdb-query button { padding: 0.45rem 0.8rem; border: 0; border-radius: 0.35rem; background: #31443f; color: #94a89f; font-weight: 700; cursor: not-allowed; }
+.duckdb-query small { color: var(--muted); }
+
+@media (max-width: 640px) {
+  main { padding-top: 3.5rem; }
+  .card-grid { grid-template-columns: 1fr; }
+  .listing-item { grid-template-columns: 1fr auto; }
+  .listing-meta { grid-column: 1; }
+}
