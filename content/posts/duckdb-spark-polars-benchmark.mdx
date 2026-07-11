@@ -1,12 +1,62 @@
 export const metadata = {
-  title: "Benchmark series: DuckDB vs Spark vs Polars — coming soon",
-  description: "A practical comparison of local analytics, distributed processing, and dataframe execution for data engineering workloads.",
-  date: "Coming soon",
+  title: "The fixed tax: DuckDB vs Polars vs Spark, measured honestly at MB scale",
+  description: "Benchmark series #1 — decomposing engine runtime into fixed overhead and per-row cost on TPC-H, and what a two-point model honestly says about scale.",
+  date: "2026-07-11",
   kind: "post",
 };
 
-# Benchmark series: DuckDB vs Spark vs Polars — coming soon
+# The fixed tax: DuckDB vs Polars vs Spark, measured honestly at MB scale
 
-This series will compare the tools on the workloads that matter in practice: file scans, joins, aggregations, memory pressure, and operational overhead.
+Most engine benchmarks try to impress with data size. This one deliberately doesn't: **100 MB and 1 GB of TPC-H**, on a laptop. That's not a limitation I'm hiding — it's the experiment. At small sizes, an engine's runtime is dominated by things that have nothing to do with your data: process startup, JVM spin-up, session initialization, planning. Measuring at two small scale factors lets me split runtime into a **fixed tax** and a **per-row cost** for each engine — and those two numbers say more about when you need which engine than any single big-data benchmark run.
 
-The goal is not to crown a universal winner. It is to make the trade-offs visible so that the smallest effective tool is easy to choose.
+Everything here is reproducible with one command from the [harness repo](https://github.com/GokulArumugam/query-engine-benchmarks): same Parquet bytes for every engine, queries reviewed side-by-side for fairness, cold/warm split, five timed repeats, and a **correctness gate** — an engine that returns wrong answers is disqualified, not just slow. The full contract is in [METHODOLOGY.md](https://github.com/GokulArumugam/query-engine-benchmarks/blob/main/docs/METHODOLOGY.md), including the two documented Spark concessions (shuffle partitions = core count, 3 GB driver heap — the 1 GB default can't even execute Q9's broadcast join at SF 1, and failing an engine for unprovisioned memory measures the machine, not the engine).
+
+**Environment:** MacBook (arm64, 8 cores, 8 GB RAM), macOS. DuckDB 1.5.4, Polars 1.42.1, PySpark 4.1.2 on OpenJDK 17. Six TPC-H queries spanning scan-filter (Q6), joins (Q3, Q5), heavy aggregation (Q1, Q18), and a many-join pipeline (Q9).
+
+## Finding 1: Spark's fixed tax is ~8–10 seconds. The others charge ~0.2s.
+
+Cold runs (fresh process, includes startup and first read), SF 0.1 — seconds:
+
+| Engine | Q1 | Q3 | Q5 | Q6 | Q9 | Q18 |
+|---|---|---|---|---|---|---|
+| DuckDB | 0.16 | 0.25 | 0.21 | 0.20 | 0.19 | 0.25 |
+| Polars | 0.14 | 0.21 | 0.18 | 0.20 | 0.23 | 0.20 |
+| Spark | 8.33 | 9.14 | 8.74 | 7.42 | 8.47 | 8.92 |
+
+Averaging cold-minus-warm across queries gives each engine's fixed overhead: **DuckDB ≈ 0.20s, Polars ≈ 0.18s, Spark ≈ 8.3s** (rising toward ~10s at SF 1). On Q6 at 100 MB, Spark spent 7.35 of its 7.42 seconds — 99% — not processing data.
+
+This is the number that matters for ad-hoc analytics, CLI tools, CI checks, and anything interactive: you pay it *every invocation*. It's also invisible in most published benchmarks, which report warm times on long-lived clusters.
+
+## Finding 2: warm, the per-row gap is real but query-shaped
+
+Warm medians (5 repeats, in-process), SF 1 — seconds:
+
+| Engine | Q1 | Q3 | Q5 | Q6 | Q9 | Q18 |
+|---|---|---|---|---|---|---|
+| DuckDB | 0.090 | 0.063 | 0.056 | 0.029 | 0.131 | 0.090 |
+| Polars | 0.283 | 0.064 | 0.094 | 0.054 | 0.760 | 0.142 |
+| Spark | 2.216 | 0.622 | 1.630 | 0.126 | 1.208 | 3.302 |
+
+Fitting the two scale factors gives per-input-row costs. Three patterns worth naming:
+
+- **DuckDB leads everywhere** (3–15 ns/row), with remarkable consistency across query shapes.
+- **Polars is close on joins and scans** (Q3: 7.3 vs DuckDB's 6.8 ns/row) but falls behind on the many-join Q9 (94 vs 15 ns/row) — join-order optimization is where a SQL optimizer earns its keep over a dataframe planner.
+- **Spark's best case is the pure scan** — on Q6 it's within ~2x of DuckDB per row (6.6 vs 3.1 ns) — but shuffle-heavy aggregation is its worst: Q18 costs **38x** DuckDB per row on a single node. The shuffle machinery that makes Spark distributable is pure overhead when there's nothing to distribute.
+
+## Finding 3: the model says single-node Spark never catches up — which is the point
+
+Extend the linear model (fixed + per-row × rows) and Spark's curves never cross DuckDB's on one machine: it starts ~40x behind on fixed cost and stays behind on per-row cost for every query shape tested. **On a single node, there is no data size at which Spark wins.**
+
+So why does Spark exist? Because the model also shows where the single node *itself* fails. Extrapolating DuckDB's Q9 to 100 GB predicts ~13 seconds of compute — but this 8 GB laptop would be deep into disk spill long before that, and past a few hundred GB there's no single "node" to buy that changes the story economically. The honest crossover isn't Spark-vs-DuckDB performance; it's **when your working set outgrows one machine's memory-and-disk story, or your org needs one shared engine with governance across hundreds of concurrent jobs.** That boundary is organizational and physical, not a benchmark line — and pretending a laptop benchmark locates it precisely would be exactly the kind of dishonesty this series is trying to avoid.
+
+All extrapolations above are two-point linear models from SF 0.1 → SF 1, labeled as such. They ignore spill, skew, and thermal throttling — the follow-up post pushes into the spill regime deliberately to watch the model break.
+
+## Practical takeaways
+
+1. If a human is waiting for the answer and the data fits on one machine: DuckDB (or Polars if you live in dataframes). The 8-second tax alone makes Spark the wrong tool for interactive work — before per-row costs even enter.
+2. Spark in cron-style batch jobs on sub-GB data is paying ~10s of pure tax per run, per job, forever. I've seen (and written) those jobs in production.
+3. When someone shows you a benchmark, ask whether it's cold or warm, and who provisioned what. Both choices moved numbers by 10–40x here, on the same hardware, same queries, same bytes.
+
+**Next in the series:** pushing into memory pressure — same harness, larger-than-RAM scale factors, watching DuckDB and Polars spill behavior and where the linear model dies.
+
+*Repo: [query-engine-benchmarks](https://github.com/GokulArumugam/query-engine-benchmarks) — `make bench` reproduces every number in this post; `results.json` carries the full environment stamp.*
