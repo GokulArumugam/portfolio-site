@@ -1,6 +1,6 @@
 # portfolio-site
 
-Gokul Arumugam's data engineering portfolio — **live at [portfolio-site-eosin-eta.vercel.app](https://portfolio-site-eosin-eta.vercel.app/)**.
+Gokul Arumugam's data engineering portfolio — **live at [gokularumugam-portfolio-site.vercel.app](https://gokularumugam-portfolio-site.vercel.app/)**.
 
 Next.js (App Router) + Tailwind + MDX. Projects are written as public design docs; the blog carries the engineering write-ups. Interactive pieces (architecture diagrams, in-browser DuckDB-WASM queries over real pipeline output) run entirely client-side — no backend.
 

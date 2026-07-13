@@ -74,9 +74,11 @@ footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--border); color: v
 .architecture-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(13rem, 0.8fr); gap: 0.9rem; }
 .architecture-map { position: relative; min-height: 28rem; overflow: hidden; border: 1px solid var(--border); border-radius: 0.6rem; background: radial-gradient(circle at 50% 35%, #172027 0, #0c1014 68%); }
 .architecture-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
-.architecture-lines line { stroke: #49615a; stroke-width: 3; stroke-linecap: round; }
-.architecture-lines .side-line { stroke: #394855; stroke-dasharray: 5 7; }
+.architecture-lines line { stroke: #49615a; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 42 3; animation: architecture-line-drift 9s linear infinite; }
+.architecture-lines .side-line { stroke: #394855; stroke-dasharray: 5 7; animation-duration: 12s; }
 .architecture-lines .replay-dot { fill: var(--accent); filter: drop-shadow(0 0 5px #8be0c5); }
+.architecture-lines .ambient-dot { fill: var(--accent); opacity: 0.45; filter: drop-shadow(0 0 3px #8be0c5); }
+@keyframes architecture-line-drift { to { stroke-dashoffset: -46; } }
 .architecture-node { position: absolute; width: 6.8rem; min-height: 3.7rem; transform: translate(-50%, -50%); padding: 0.48rem; border: 1px solid #52606b; border-radius: 0.5rem; background: #151b21; color: var(--foreground); cursor: pointer; text-align: left; }
 .architecture-node:hover, .architecture-node.selected { border-color: var(--accent); background: #1a2828; }
 .architecture-node strong, .architecture-node span { display: block; line-height: 1.15; }
@@ -94,6 +96,11 @@ footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--border); color: v
 .replay-counts > span { color: var(--foreground); font-weight: 700; }
 .replay-counts small { display: flex; justify-content: space-between; gap: 0.5rem; }
 .replay-counts b { color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .architecture-lines line { animation: none; }
+  .architecture-lines .ambient-dot { display: none; }
+}
 
 .duckdb-query { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
 .recon-demo { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }

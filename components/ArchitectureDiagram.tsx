@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-export interface ArchitectureDiagramProps {
-  ariaLabel?: string;
-}
-
-type NodeId = "sse" | "ingest" | "redpanda" | "spark" | "iceberg" | "grafana" | "dlq" | "prometheus" | "catalog";
-
-type DiagramNode = {
-  id: NodeId;
+export type ArchitectureNode = {
+  id: string;
   title: string;
   subtitle: string;
   x: number;
@@ -21,9 +15,26 @@ type DiagramNode = {
   adr: string;
 };
 
-const adrBase = "https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/";
+export type ArchitectureEdge = {
+  source: string;
+  target: string;
+  kind?: "main" | "side";
+  line?: { x1: number; y1: number; x2: number; y2: number };
+};
 
-const nodes: DiagramNode[] = [
+export interface ArchitectureDiagramProps {
+  ariaLabel?: string;
+  nodes?: ArchitectureNode[];
+  edges?: ArchitectureEdge[];
+  mainPaths?: string[][];
+  adrBase?: string;
+  showReplay?: boolean;
+  initialSelectedId?: string;
+}
+
+const wikiAdrBase = "https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/";
+
+const wikiNodes: ArchitectureNode[] = [
   { id: "sse", title: "Wikimedia SSE", subtitle: "recentchange", x: 78, y: 208, what: "The public EventStreams source delivers live recent-change events over Server-Sent Events.", why: "The source is resumable with Last-Event-ID, which makes reconnect behavior explicit.", failure: "A disconnect can replay an overlap; downstream deduplication, not wishful thinking, absorbs it.", adr: "0005-delivery-semantics.md" },
   { id: "ingest", title: "Ingest", subtitle: "resume + stamp", x: 225, y: 208, what: "A small service records ingested_at and produces raw events keyed by wiki.", why: "A thin boundary preserves the original payload and owns SSE recovery plus producer acknowledgements.", failure: "An ingest restart can produce duplicates across sessions, so it must be safe to replay.", adr: "0005-delivery-semantics.md" },
   { id: "redpanda", title: "Redpanda", subtitle: "Kafka API", x: 372, y: 208, what: "The durable transport is a Kafka-compatible topic: wiki.recentchange.", why: "Redpanda keeps the local stack light while retaining the Kafka API used by Spark and a future MSK path.", failure: "When the broker is unavailable, ingest retries and holds its source position rather than dropping events.", adr: "0002-redpanda-over-kafka.md" },
@@ -35,32 +46,70 @@ const nodes: DiagramNode[] = [
   { id: "catalog", title: "Iceberg REST catalog", subtitle: "table metadata", x: 676, y: 420, side: true, what: "The REST catalog coordinates Iceberg table metadata independently from MinIO object storage.", why: "It makes the local catalog portable to a managed cloud catalog later.", failure: "If the catalog is unavailable, a Spark batch fails before its checkpoint advances and can safely retry.", adr: "0004-iceberg-on-minio.md" },
 ];
 
-const byId = Object.fromEntries(nodes.map((node) => [node.id, node])) as Record<NodeId, DiagramNode>;
-const mainStops = [byId.sse, byId.ingest, byId.redpanda, byId.spark, byId.iceberg, byId.grafana];
+const wikiEdges: ArchitectureEdge[] = [
+  { source: "sse", target: "ingest", kind: "main" },
+  { source: "ingest", target: "redpanda", kind: "main" },
+  { source: "redpanda", target: "spark", kind: "main" },
+  { source: "spark", target: "iceberg", kind: "main" },
+  { source: "iceberg", target: "grafana", kind: "main" },
+  { source: "spark", target: "dlq", kind: "side" },
+  { source: "prometheus", target: "ingest", kind: "side", line: { x1: 323, y1: 98, x2: 323, y2: 164 } },
+  { source: "prometheus", target: "grafana", kind: "side", line: { x1: 377, y1: 52, x2: 770, y2: 52 } },
+  { source: "iceberg", target: "catalog", kind: "side" },
+];
 
-function pointOnReplayPath(progress: number) {
+const wikiMainPaths = [["sse", "ingest", "redpanda", "spark", "iceberg", "grafana"]];
+
+function pointOnPath(path: ArchitectureNode[], progress: number) {
   const clamped = Math.max(0, Math.min(progress, 1));
-  const segment = clamped * (mainStops.length - 1);
-  const index = Math.min(Math.floor(segment), mainStops.length - 2);
+  const segment = clamped * (path.length - 1);
+  const index = Math.min(Math.floor(segment), path.length - 2);
   const remainder = segment - index;
-  const from = mainStops[index];
-  const to = mainStops[index + 1];
+  const from = path[index];
+  const to = path[index + 1];
   return { x: from.x + (to.x - from.x) * remainder, y: from.y + (to.y - from.y) * remainder };
 }
 
-export default function ArchitectureDiagram({ ariaLabel = "Interactive Wikipedia event-stream pipeline" }: ArchitectureDiagramProps) {
-  const [selected, setSelected] = useState<NodeId>("spark");
+function svgPath(path: ArchitectureNode[]) {
+  return path.map((node, index) => `${index === 0 ? "M" : "L"}${node.x} ${node.y}`).join(" ");
+}
+
+export default function ArchitectureDiagram({
+  ariaLabel = "Interactive Wikipedia event-stream pipeline",
+  nodes = wikiNodes,
+  edges = wikiEdges,
+  mainPaths = wikiMainPaths,
+  adrBase = wikiAdrBase,
+  showReplay = true,
+  initialSelectedId,
+}: ArchitectureDiagramProps) {
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const resolvedPaths = useMemo(
+    () => mainPaths.map((path) => path.map((id) => nodeById.get(id)).filter((node): node is ArchitectureNode => Boolean(node))).filter((path) => path.length > 1),
+    [mainPaths, nodeById],
+  );
+  const fallbackSelectedId = initialSelectedId && nodeById.has(initialSelectedId) ? initialSelectedId : nodes.find((node) => node.id === "spark")?.id ?? nodes[0]?.id ?? "";
+  const [selected, setSelected] = useState(fallbackSelectedId);
   const [isReplaying, setIsReplaying] = useState(false);
   const [dots, setDots] = useState<Array<{ id: number; progress: number }>>([]);
   const [wikiCounts, setWikiCounts] = useState<Record<string, number>>({});
+  const [reducedMotion, setReducedMotion] = useState(false);
   const frameRef = useRef<number | null>(null);
 
   useEffect(() => () => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
   }, []);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
   const replay = async () => {
-    if (isReplaying) return;
+    if (isReplaying || !resolvedPaths.length) return;
     try {
       const response = await fetch("/data/sample_events.jsonl");
       if (!response.ok) throw new Error("The sample replay is unavailable.");
@@ -104,27 +153,44 @@ export default function ArchitectureDiagram({ ariaLabel = "Interactive Wikipedia
     }
   };
 
-  const selectedNode = byId[selected];
+  const selectedNode = nodeById.get(selected) ?? nodes[0];
   const topWikis = Object.entries(wikiCounts).sort(([, left], [, right]) => right - left).slice(0, 4);
+
+  if (!selectedNode) return null;
 
   return (
     <section className="architecture" aria-label={ariaLabel}>
       <div className="architecture-toolbar">
-        <div><span className="eyebrow">Interactive system map</span><p>Click a component to inspect its trade-offs, then replay a captured event slice.</p></div>
-        <button type="button" className="replay-button" onClick={() => void replay()} disabled={isReplaying}>
+        <div><span className="eyebrow">Interactive system map</span><p>{showReplay ? "Click a component to inspect its trade-offs, then replay a captured event slice." : "Click a component to inspect its trade-offs."}</p></div>
+        {showReplay && <button type="button" className="replay-button" onClick={() => void replay()} disabled={isReplaying}>
           {isReplaying ? "Replaying…" : "Replay 1,200 events"}
-        </button>
+        </button>}
       </div>
       <div className="architecture-layout">
-        <div className="architecture-map" role="img" aria-label="Wikimedia SSE flows through ingest, Redpanda, Spark and Iceberg to Grafana, with a DLQ, Prometheus and Iceberg REST catalog alongside it.">
+        <div className="architecture-map" role="img" aria-label={ariaLabel}>
           <svg className="architecture-lines" viewBox="0 0 900 500" aria-hidden="true" preserveAspectRatio="none">
-            {mainStops.slice(0, -1).map((node, index) => <line key={node.id} x1={node.x + 54} y1={node.y} x2={mainStops[index + 1].x - 54} y2={mainStops[index + 1].y} />)}
-            <line x1="519" y1="252" x2="519" y2="376" className="side-line" />
-            <line x1="323" y1="98" x2="323" y2="164" className="side-line" />
-            <line x1="676" y1="252" x2="676" y2="376" className="side-line" />
-            <line x1="377" y1="52" x2="770" y2="52" className="side-line" />
+            {edges.map((edge) => {
+              const source = nodeById.get(edge.source);
+              const target = nodeById.get(edge.target);
+              if (!source || !target) return null;
+              const horizontal = Math.abs(source.x - target.x) >= Math.abs(source.y - target.y);
+              const sourceOffset = horizontal ? (target.x > source.x ? 54 : -54) : 44 * (target.y > source.y ? 1 : -1);
+              const targetOffset = horizontal ? (target.x > source.x ? -54 : 54) : 44 * (target.y > source.y ? -1 : 1);
+              const line = edge.line ?? {
+                x1: horizontal ? source.x + sourceOffset : source.x,
+                y1: horizontal ? source.y : source.y + sourceOffset,
+                x2: horizontal ? target.x + targetOffset : target.x,
+                y2: horizontal ? target.y : target.y + targetOffset,
+              };
+              return <line key={`${edge.source}-${edge.target}`} {...line} className={edge.kind === "side" ? "side-line" : "main-line"} />;
+            })}
+            {!reducedMotion && !isReplaying && resolvedPaths.flatMap((path, pathIndex) => Array.from({ length: 4 }, (_, dotIndex) => (
+              <circle key={`ambient-${pathIndex}-${dotIndex}`} r="2.5" className="ambient-dot">
+                <animateMotion path={svgPath(path)} dur={`${7 + pathIndex}s`} begin={`${-(dotIndex * 1.7 + pathIndex * 0.8)}s`} repeatCount="indefinite" />
+              </circle>
+            )))}
             {dots.map((dot) => {
-              const point = pointOnReplayPath(dot.progress);
+              const point = pointOnPath(resolvedPaths[dot.id % resolvedPaths.length], dot.progress);
               return <circle key={dot.id} cx={point.x} cy={point.y} r="6" className="replay-dot" />;
             })}
           </svg>
@@ -150,10 +216,10 @@ export default function ArchitectureDiagram({ ariaLabel = "Interactive Wikipedia
             <div><dt>Failure mode</dt><dd>{selectedNode.failure}</dd></div>
           </dl>
           <a href={`${adrBase}${selectedNode.adr}`} target="_blank" rel="noreferrer">Read the ADR on GitHub ↗</a>
-          <div className="replay-counts">
+          {showReplay && <div className="replay-counts">
             <span>Replay counters</span>
             {topWikis.length ? topWikis.map(([wiki, count]) => <small key={wiki}>{wiki} <b>{count}</b></small>) : <small>Start the replay to count edits by wiki.</small>}
-          </div>
+          </div>}
         </aside>
       </div>
     </section>

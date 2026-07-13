@@ -12,6 +12,8 @@ export const metadata = {
 
 A deterministic reconciliation engine for the two views of payment traffic that matter at daily close: what the switch says happened, and what the bank says settled.
 
+**In plain terms:** Every digital payment leaves two records — one in the payment system that processed it, one in the bank file that settles the money a day later. They should match. In reality some payments go missing, get posted twice, or settle for slightly different amounts. This engine compares millions of records from both sides, finds every disagreement, and labels each one with evidence an operations team can act on — in under five seconds for a million pairs.
+
 ## Problem
 
 The switch ledger is real-time and authoritative for payment attempts. The bank settlement file arrives at T+1 and is authoritative for money movement. They should describe the same transactions, but real operations create drops, duplicate posts, fee or rounding differences, status disagreements, late settlements, and malformed references. The job is not to make the totals look plausible: it is to classify every disagreement with evidence that an operator can audit.
@@ -20,20 +22,23 @@ The switch ledger is real-time and authoritative for payment attempts. The bank 
 
 <ArchitectureDiagram
   ariaLabel="Payments reconciliation architecture"
+  adrBase="https://github.com/GokulArumugam/payments-reconciliation/blob/main/docs/adr/"
+  showReplay={false}
   nodes={[
-    { id: "generator", type: "input", position: { x: 0, y: 110 }, data: { label: "Seeded generator" } },
-    { id: "switch", type: "input", position: { x: 185, y: 35 }, data: { label: "Switch ledger" } },
-    { id: "bank", type: "input", position: { x: 185, y: 190 }, data: { label: "T+1 bank file" } },
-    { id: "passes", position: { x: 385, y: 110 }, data: { label: "DuckDB SQL passes" } },
-    { id: "results", type: "output", position: { x: 580, y: 110 }, data: { label: "Matches + exceptions" } },
+    { id: "generator", title: "Seeded generator", subtitle: "two ledgers + manifest", x: 130, y: 250, what: "A seeded synthetic generator emits the switch ledger, the T+1 bank file, and a separate defect manifest describing every injected disagreement.", why: "Synthetic data exercises real payment failure patterns without touching production data, and the seed makes every run reproducible.", failure: "If generation and evaluation shared state, recall numbers would be circular — the engine never reads the manifest.", adr: "0003-ground-truth-oracle.md" },
+    { id: "switch", title: "Switch ledger", subtitle: "real-time attempts", x: 365, y: 125, what: "The real-time view: every payment attempt the switch processed, with status, amount, and reference.", why: "It is authoritative for attempts, not for money movement, so it anchors one side of every comparison.", failure: "Duplicate posts and malformed references originate here and must be excluded before exact matching.", adr: "0001-deterministic-multipass-matching.md" },
+    { id: "bank", title: "T+1 bank file", subtitle: "settled money", x: 365, y: 375, what: "The bank's settlement file arrives a day later and is authoritative for money that actually moved.", why: "Late, fee-adjusted, and occasionally missing records are the norm — the settlement file is where real-world mess enters.", failure: "Late settlements and rounding differences are expected inputs, not errors; the engine classifies them instead of rejecting them.", adr: "0001-deterministic-multipass-matching.md" },
+    { id: "passes", title: "DuckDB SQL passes", subtitle: "5 numbered passes", x: 600, y: 250, what: "Five numbered DuckDB SQL passes: normalize, exclude repeated keys, exact match, constrained fuzzy rescue, classify residuals.", why: "Plain SQL keeps every decision auditable — an operator can read the exact rule that produced any match or exception.", failure: "The fuzzy pass is deliberately constrained; an over-eager matcher would hide real defects as false matches.", adr: "0002-duckdb-sql-core.md" },
+    { id: "results", title: "Matches + exceptions", subtitle: "evidence out", x: 800, y: 250, what: "Every record pair ends up either matched or in a classified exception bucket with the evidence for the decision.", why: "Daily close needs zero unexplained records, not plausible-looking totals.", failure: "Verification compares engine output against the withheld manifest: 100% recall and zero false positives at 1M pairs.", adr: "0003-ground-truth-oracle.md" },
   ]}
   edges={[
-    { id: "e1", source: "generator", target: "switch" },
-    { id: "e2", source: "generator", target: "bank" },
-    { id: "e3", source: "switch", target: "passes" },
-    { id: "e4", source: "bank", target: "passes" },
-    { id: "e5", source: "passes", target: "results" },
+    { source: "generator", target: "switch", kind: "main" },
+    { source: "generator", target: "bank", kind: "main" },
+    { source: "switch", target: "passes", kind: "main" },
+    { source: "bank", target: "passes", kind: "main" },
+    { source: "passes", target: "results", kind: "main" },
   ]}
+  mainPaths={[["generator", "switch", "passes", "results"], ["generator", "bank", "passes", "results"]]}
 />
 
 The generator produces the two ledger views plus a separate defect manifest. The engine never reads that manifest: five numbered DuckDB passes normalize inputs, exclude repeated keys, perform exact matching, attempt a deliberately constrained fuzzy rescue, then classify every residual. The manifest is used only after the run to verify what the engine found.

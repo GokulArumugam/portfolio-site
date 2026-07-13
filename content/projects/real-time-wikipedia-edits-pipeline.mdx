@@ -13,6 +13,8 @@ export const metadata = {
 
 A live Wikimedia recent-changes stream, made dependable enough to query. The stack runs on one laptop, preserves raw events for replay, and keeps its cloud path deliberately boring: Kafka API and S3 API in local clothes.
 
+**In plain terms:** Wikipedia publishes a live feed of every edit anyone makes, anywhere in the world — hundreds per second. This project catches that firehose, cleans it up, and turns it into tables and live dashboards you can trust. The hard part isn't reading the feed; it's staying correct when the connection drops, the same event arrives twice, or a job is killed halfway through a write. That is the problem this pipeline solves.
+
 ## Problem
 
 Wikimedia's `recentchange` SSE feed is public, noisy, and continuous. That is useful only if a reconnect does not create a gap, a duplicate does not inflate an aggregate, malformed upstream payloads do not leak into a dashboard, and an interrupted streaming batch can restart without hand repair.
