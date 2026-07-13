@@ -65,26 +65,26 @@ footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--border); color: v
 .prose code { padding: 0.15em 0.35em; border-radius: 0.25rem; background: var(--surface-strong); color: var(--accent); }
 .prose pre { overflow-x: auto; padding: 1rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); }
 
-.architecture { margin: 1.75rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.8rem; background: #0e1216; }
+.architecture { width: min(calc(100vw - 3.5rem), 72rem); margin: 1.75rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.8rem; background: #0e1216; }
 .architecture-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.35rem 0.35rem 1rem; }
 .architecture-toolbar p { max-width: 35rem; margin: 0.2rem 0 0; color: var(--muted); font-size: 0.87rem; }
 .replay-button, .duckdb-query button { padding: 0.5rem 0.85rem; border: 1px solid #527469; border-radius: 0.4rem; background: #203b34; color: var(--accent); font-weight: 700; cursor: pointer; white-space: nowrap; }
 .replay-button:hover, .duckdb-query button:hover { border-color: var(--accent); background: #27483e; }
 .replay-button:disabled, .duckdb-query button:disabled { cursor: wait; opacity: 0.65; }
-.architecture-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(13rem, 0.8fr); gap: 0.9rem; }
-.architecture-map { position: relative; min-height: 28rem; overflow: hidden; border: 1px solid var(--border); border-radius: 0.6rem; background: radial-gradient(circle at 50% 35%, #172027 0, #0c1014 68%); }
+.architecture-layout { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(15rem, 1fr); gap: 0.9rem; }
+.architecture-map { position: relative; min-height: 32rem; overflow: hidden; border: 1px solid var(--border); border-radius: 0.6rem; background: radial-gradient(circle at 50% 35%, #172027 0, #0c1014 68%); }
 .architecture-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
 .architecture-lines line { stroke: #49615a; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 42 3; animation: architecture-line-drift 9s linear infinite; }
 .architecture-lines .side-line { stroke: #394855; stroke-dasharray: 5 7; animation-duration: 12s; }
 .architecture-lines .replay-dot { fill: var(--accent); filter: drop-shadow(0 0 5px #8be0c5); }
 .architecture-lines .ambient-dot { fill: var(--accent); opacity: 0.45; filter: drop-shadow(0 0 3px #8be0c5); }
 @keyframes architecture-line-drift { to { stroke-dashoffset: -46; } }
-.architecture-node { position: absolute; width: 6.8rem; min-height: 3.7rem; transform: translate(-50%, -50%); padding: 0.48rem; border: 1px solid #52606b; border-radius: 0.5rem; background: #151b21; color: var(--foreground); cursor: pointer; text-align: left; }
+.architecture-node { position: absolute; width: 7.4rem; min-height: 4rem; transform: translate(-50%, -50%); padding: 0.5rem; border: 1px solid #52606b; border-radius: 0.5rem; background: #151b21; color: var(--foreground); cursor: pointer; text-align: left; }
 .architecture-node:hover, .architecture-node.selected { border-color: var(--accent); background: #1a2828; }
 .architecture-node strong, .architecture-node span { display: block; line-height: 1.15; }
-.architecture-node strong { font-size: 0.72rem; }
-.architecture-node span { margin-top: 0.2rem; color: var(--muted); font-size: 0.62rem; }
-.architecture-node.side-node { width: 7rem; background: #131920; }
+.architecture-node strong { font-size: 0.78rem; }
+.architecture-node span { margin-top: 0.2rem; color: var(--muted); font-size: 0.66rem; }
+.architecture-node.side-node { width: 7.8rem; background: #131920; }
 .architecture-panel { display: flex; flex-direction: column; padding: 1rem; border: 1px solid var(--border); border-radius: 0.6rem; background: var(--surface); }
 .architecture-panel h3 { margin: 0.25rem 0 0.8rem; font-size: 1.1rem; }
 .architecture-panel dl { margin: 0; }
@@ -151,6 +151,7 @@ footer { padding: 1.5rem 0 2.5rem; border-top: 1px solid var(--border); color: v
   .listing-meta { grid-column: 1; }
   .prose table { display: block; overflow-x: auto; }
   .architecture-toolbar, .duckdb-query-heading, .recon-demo-heading, .recon-demo-actions { align-items: flex-start; flex-direction: column; }
+  .architecture { width: 100%; }
   .architecture-layout { grid-template-columns: 1fr; }
   .architecture-map { min-height: 22rem; }
   .architecture-node { width: 4.6rem; min-height: 3rem; padding: 0.32rem; }
