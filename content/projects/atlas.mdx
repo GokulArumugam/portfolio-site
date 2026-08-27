@@ -11,6 +11,17 @@ You point Atlas at a database, ask a question in plain English, and it hands bac
 
 **In plain terms:** everyone can build "chat with your database" in a weekend. The hard part is building one a security team would actually approve. Atlas is my attempt at that: a security-guard librarian standing at the door of your warehouse. It knows the building (schema map), checks your badge (per-user scoping), hides the secrets (masking), writes down everything (audit trail), and — golden rule — never carries books out of the building.
 
+## Try it live
+
+A full deployment runs free on Render: **[atlas-analyst.onrender.com](https://atlas-analyst.onrender.com)** — ask it the demo questions, open the dashboard, and watch every hop land in the audit trail. (Free tier: the instance naps after ~15 minutes idle, so the first load can take ~50 seconds to wake. Coffee's on you.)
+
+The offline brain answers these scripted questions (try pasting them in):
+
+- *"What is the average number of riders going from Airport to Downtown?"*
+- *"What is the average salary in each department?"* — as HR you get real numbers; the same question as engineering gets a polite refusal. Try switching the user badge and asking again.
+- *"How many trips are there per status?"*
+- *"Who is the top driver?"*
+
 ## The trap hiding inside the promise
 
 The promise is simple: **no raw data value ever reaches the vendor.** But almost every feature people want quietly breaks it:
@@ -61,8 +72,8 @@ The repo carries **116 tests** covering the firewall, scoping, masking, and audi
 
 This is a demo/portfolio project and I'd rather tell you the edges than let you find them:
 
-- **No real login yet.** The API trusts the key store, but there's no SSO/OAuth in front of it. The security *ideas* (firewall, scoping, audit) are real and tested; the *auth layer* around them is deliberately left as "later."
+- **No real login yet.** The public demo runs with auth open (`ATLAS_AUTH_MODE=disabled`) so anyone can poke it. For a real deployment switch to `enforced` and mint per-user keys with `atlas-mint-key` — the firewall, scoping, and audit layers are already built for that.
 - **The offline brain is deliberately tiny.** Without an LLM it only answers the scripted demo questions — swap in Ollama or a cloud provider for free-form questions.
 - **DuckDB/Postgres only** for now. The connector interface is there for more, but that's the honest current surface.
 
-Grab the code at [github.com/GokulArumugam/atlas](https://github.com/GokulArumugam/atlas) — `docker compose up --build` and you're off.
+Grab the code at [github.com/GokulArumugam/atlas](https://github.com/GokulArumugam/atlas) — `docker compose up --build` and you're off, or just use the [live demo](https://atlas-analyst.onrender.com).
