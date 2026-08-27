@@ -10,13 +10,15 @@ export const metadata = {
 
 # Payments Reconciliation Engine
 
-A deterministic reconciliation engine for the two views of payment traffic that matter at daily close: what the switch says happened, and what the bank says settled.
+Every digital payment leaves two paper trails: one in the switch (the system that processed the attempt) and one in the bank file (that settles the actual money a day later). They should match. Sometimes they don't. This engine finds every mismatch — across a million records — in under five seconds.
 
-**In plain terms:** Every digital payment leaves two records — one in the payment system that processed it, one in the bank file that settles the money a day later. They should match. In reality some payments go missing, get posted twice, or settle for slightly different amounts. This engine compares millions of records from both sides, finds every disagreement, and labels each one with evidence an operations team can act on — in under five seconds for a million pairs.
+**In plain terms:** think of it as the accountant who checks your wallet against your bank statement every single day, except your wallet has a million entries and the bank statement refuses to arrive on time. Payments go missing, get recorded twice, or settle for slightly different amounts. This engine compares both sides, flags every disagreement, and — this is the important part — explains exactly why it flagged each one, with evidence.
 
 ## Problem
 
-The switch ledger is real-time and authoritative for payment attempts. The bank settlement file arrives at T+1 and is authoritative for money movement. They should describe the same transactions, but real operations create drops, duplicate posts, fee or rounding differences, status disagreements, late settlements, and malformed references. The job is not to make the totals look plausible: it is to classify every disagreement with evidence that an operator can audit.
+The switch ledger is real-time and authoritative for payment attempts. The bank settlement file arrives at T+1 and is authoritative for money actually moving. In a perfect world they'd tell the same story. In the real world: payments get dropped, posted twice, settle late, settle with fee deductions, or arrive with reference numbers that look like a cat walked over the keyboard.
+
+The job is not to make totals look plausible — anyone can make totals look plausible. The job is to classify every single disagreement with evidence an operations team can act on. No guessing allowed.
 
 ## Architecture
 
@@ -41,19 +43,19 @@ The switch ledger is real-time and authoritative for payment attempts. The bank 
   mainPaths={[["generator", "switch", "passes", "results"], ["generator", "bank", "passes", "results"]]}
 />
 
-The generator produces the two ledger views plus a separate defect manifest. The engine never reads that manifest: five numbered DuckDB passes normalize inputs, exclude repeated keys, perform exact matching, attempt a deliberately constrained fuzzy rescue, then classify every residual. The manifest is used only after the run to verify what the engine found.
+A generator creates both ledgers plus a secret answer sheet (the defect manifest — every injected mistake, written down). The engine never gets to peek at that answer sheet. It runs five numbered SQL passes: clean the data, set aside duplicates, match the easy exact ones, attempt a carefully limited fuzzy rescue for the mangled ones, and classify whatever's left. Only after the engine is done do we check its work against the answer sheet.
 
 ## Key decisions
 
-1. **[ADR-0001: deterministic multi-pass matching](https://github.com/GokulArumugam/payments-reconciliation/blob/main/docs/adr/0001-deterministic-multipass-matching.md).** Ordered rule passes make every result explainable. If constrained fuzzy matching has more than one candidate, it emits `AMBIGUOUS`; it never guesses.
-2. **[ADR-0002: DuckDB SQL as the core](https://github.com/GokulArumugam/payments-reconciliation/blob/main/docs/adr/0002-duckdb-sql-core.md).** The numbered SQL files are the matching logic, while orchestration only loads inputs and writes outputs. That makes the same rules runnable on a laptop, in CI, and in DuckDB-WASM.
-3. **[ADR-0003: ground-truth oracle](https://github.com/GokulArumugam/payments-reconciliation/blob/main/docs/adr/0003-ground-truth-oracle.md).** The generator emits a defect manifest separately from the reconciler inputs. Verification compares discovered `(txn_id, defect_class)` pairs with that oracle instead of relying on a small hand-written fixture set.
+1. **[ADR-0001: deterministic multi-pass matching](https://github.com/GokulArumugam/payments-reconciliation/blob/main/docs/adr/0001-deterministic-multipass-matching.md).** Rules run in order, so every result is explainable. If the fuzzy matcher finds more than one possible match, it refuses to guess and raises `AMBIGUOUS`. A matcher that guesses is a matcher that quietly hides real problems.
+2. **[ADR-0002: DuckDB SQL as the core](https://github.com/GokulArumugam/payments-reconciliation/blob/main/docs/adr/0002-duckdb-sql-core.md).** The matching logic is just SQL files you can read top to bottom. No framework, no magic. The same SQL runs on my laptop, in CI, and in your browser via DuckDB-WASM. That portability is why the demo below exists.
+3. **[ADR-0003: ground-truth oracle](https://github.com/GokulArumugam/payments-reconciliation/blob/main/docs/adr/0003-ground-truth-oracle.md).** The generator writes the defect manifest separately from the inputs the engine reads. Verification compares what was injected with what was found. Anything less would be grading your own exam.
 
 ## Correctness contract
 
-The generator emits a defect manifest that acts as the oracle. It is deliberately isolated from `switch_ledger` and `bank_settlement`, then compared with the reconciler outputs after the run. The contract is strict: every injected defect must be rediscovered, and no clean transaction may be reported as a defect.
+The contract is strict and a little brutal: every injected defect must be found, and no innocent transaction may be accused. Recall of 100%, false positives of zero. Anything less and the build fails.
 
-Verified on a laptop: **1M pairs reconciled in 4.7s**, with **100% recall across all 35,000 injected defects** in the seven defect classes and **zero false positives**. The 5M-scale measurement is **5M pairs in 217s on the same laptop (memory-bound alongside the streaming pipeline VM; 175,000 defects, still 100% recall, zero false positives)**.
+Verified on a laptop: **1M pairs reconciled in 4.7s**, with **100% recall across all 35,000 injected defects** in the seven defect classes and **zero false positives**. Scaled it up too: **5M pairs in 217s on the same laptop** (memory-bound because a streaming pipeline VM was hogging the machine — rude — still 100% recall, zero false positives).
 
 ## Failure modes
 
@@ -65,6 +67,6 @@ Verified on a laptop: **1M pairs reconciled in 4.7s**, with **100% recall across
 
 ## Try it
 
-Move the sliders to inject disjoint, seeded defects into 3,000 transaction pairs. Your browser runs the engine's actual, unmodified `sql/` files fetched from `public/recon-sql/`; only the CLI's input/output templates are resolved in memory so DuckDB-WASM can use its generated tables.
+Play with the sliders below — inject defects into 3,000 transaction pairs and watch the engine catch them. Your browser runs the engine's actual, unmodified SQL files; nothing is faked for the demo. Go on, try to fool it. It doesn't get tired, and it doesn't guess.
 
 <ReconDemo />

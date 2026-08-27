@@ -11,30 +11,35 @@ export const metadata = {
 
 # Real-time Wikipedia Edits Pipeline
 
-A live Wikimedia recent-changes stream, made dependable enough to query. The stack runs on one laptop, preserves raw events for replay, and keeps its cloud path deliberately boring: Kafka API and S3 API in local clothes.
+Wikipedia publishes a live feed of every edit made anywhere in the world — hundreds per second, all day, every day. This project catches that firehose, cleans it, and turns it into tables and dashboards you can actually trust. Running on one laptop. For $0 a month.
 
-**In plain terms:** Wikipedia publishes a live feed of every edit anyone makes, anywhere in the world — hundreds per second. This project catches that firehose, cleans it up, and turns it into tables and live dashboards you can trust. The hard part isn't reading the feed; it's staying correct when the connection drops, the same event arrives twice, or a job is killed halfway through a write. That is the problem this pipeline solves.
+**In plain terms:** imagine trying to catch rain from a storm with a bucket, but you're not allowed to miss a single drop, and if you trip, you have to figure out which drops you already caught so you don't catch them twice. That's this project. The hard part was never reading the feed — it's staying correct when the wifi hiccups, the same edit shows up twice, or a job dies halfway through writing.
 
 ## Problem
 
-Wikimedia's `recentchange` SSE feed is public, noisy, and continuous. That is useful only if a reconnect does not create a gap, a duplicate does not inflate an aggregate, malformed upstream payloads do not leak into a dashboard, and an interrupted streaming batch can restart without hand repair.
+Wikimedia's `recentchange` feed is public, noisy, and never stops. That's only useful if:
 
-The target was an honest freshness SLO of two minutes—not sub-second latency nobody consumes—while preserving enough raw data to rebuild every aggregate under a changed policy.
+- a reconnect doesn't leave a hole in your data,
+- a duplicate doesn't inflate your counts,
+- junk payloads don't sneak into your dashboard,
+- and a killed job can restart without you babysitting it at 2 AM.
+
+The goal was an honest freshness target of two minutes — not sub-second latency that nobody actually needs. And keep the raw events around, so if I change my mind about how aggregates work, I can rebuild them from scratch.
 
 ## Architecture
 
 <ArchitectureDiagram />
 
-The ingest service resumes SSE with `Last-Event-ID`, stamps `ingested_at`, and writes raw JSON keyed by wiki. Spark validates and routes bad records to a DLQ before appending valid events to bronze Iceberg. It then applies event-time windows and watermark-bounded deduplication to create gold tables for Grafana. Prometheus supplies the freshness signal; MinIO and the Iceberg REST catalog make the lakehouse portable rather than local-only.
+The ingest service reconnects gracefully using `Last-Event-ID` and writes raw events to storage. Spark then checks every record, throws the malformed ones into a DLQ (dead letter queue — the intern's bin of the data world), and appends the good ones to bronze Iceberg tables. From there it builds gold tables for Grafana. Prometheus watches freshness; MinIO and the Iceberg REST catalog keep the whole thing portable — it's Kafka and S3, just wearing local clothes.
 
 ## Key decisions
 
-1. **[ADR-0001: local-first Docker Compose](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0001-local-first-docker-compose.md).** The entire system must be reproducible without a cloud bill. Kafka and S3-compatible choices preserve a documented AWS path without pretending a laptop demonstrates multi-node failure modes.
-2. **[ADR-0002: Redpanda over Kafka](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0002-redpanda-over-kafka.md).** Redpanda is light enough to coexist with Spark and observability services locally, while its Kafka API leaves producers, consumers, and a future MSK move unchanged.
-3. **[ADR-0003: Spark Structured Streaming over Flink](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0003-spark-structured-streaming-over-flink.md).** Spark's micro-batches clear the two-minute SLO with room to spare and pair with Iceberg's reference-quality sink semantics. The trade-off is a deliberate latency floor, not a hidden limitation.
-4. **[ADR-0004: Iceberg on MinIO](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0004-iceberg-on-minio.md).** Iceberg brings atomic snapshots, schema evolution, time travel, and engine-neutral tables. MinIO exercises the real S3 code path locally; compaction and metadata expiry are first-class maintenance work.
-5. **[ADR-0005: stage-by-stage delivery semantics](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0005-delivery-semantics.md).** “Exactly-once” is not a system label. Each boundary has a stated contract, and the result is effectively-once gold tables with a known residual risk.
-6. **[ADR-0006: two-minute event-time watermark](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0006-late-data-and-watermarking.md).** A visible late-arrivals table makes the freshness/completeness trade-off inspectable. Bronze retains all events, so aggregates are always rebuildable with a different policy.
+1. **[ADR-0001: local-first Docker Compose](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0001-local-first-docker-compose.md).** The whole system must run without a cloud bill. My wallet agreed with this decision immediately.
+2. **[ADR-0002: Redpanda over Kafka](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0002-redpanda-over-kafka.md).** Redpanda speaks Kafka's API but runs as one lightweight binary — my laptop thanks me, since Spark and Grafana are already fighting over RAM. And because it's Kafka-compatible, moving to real Kafka/MSK later needs zero code changes.
+3. **[ADR-0003: Spark Structured Streaming over Flink](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0003-spark-structured-streaming-over-flink.md).** Flink is amazing if you need sub-second everything. I needed two-minute freshness. Spark's micro-batches clear that easily and pair perfectly with Iceberg. Choosing Flink here would've been me buying a race car to drive to the grocery store.
+4. **[ADR-0004: Iceberg on MinIO](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0004-iceberg-on-minio.md).** Iceberg gives atomic snapshots, schema evolution, and time travel — like git, but for tables. MinIO speaks the S3 API, so the cloud path is a config change, not a rewrite.
+5. **[ADR-0005: stage-by-stage delivery semantics](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0005-delivery-semantics.md).** "Exactly-once" is a marketing term until you prove it per hop. Each boundary here has a stated contract, and the gold tables are effectively-once with the residual risk written down honestly.
+6. **[ADR-0006: two-minute event-time watermark](https://github.com/GokulArumugam/wiki-stream-pipeline/blob/main/docs/adr/0006-late-data-and-watermarking.md).** Events that show up late don't get silently dropped — they land in a visible late-arrivals table. Late data isn't a bug, it's a fact of life. You just need to count it.
 
 ## Delivery semantics
 
@@ -60,16 +65,16 @@ The ingest service resumes SSE with `Last-Event-ID`, stamps `ingested_at`, and w
 
 <ChaosDemo />
 
-The recording sends `SIGKILL` to Spark in the middle of a batch. Bronze grows from **70,233** to **74,015** rows across the kill; the duplicate check reports **total = 74,015** and **distinct = 74,015**. Freshness recovers in **under 120 seconds**, the dashboard SLO. The point is not that a process cannot die—it is that recovery produces a checkable data result.
+Below: I literally kill Spark mid-batch (SIGKILL — no goodbye, no cleanup, very rude). Bronze grows from **70,233** to **74,015** rows across the kill; the duplicate check reports **total = 74,015** and **distinct = 74,015**. Freshness recovers in **under 120 seconds**. The point isn't "processes never die" — of course they die. The point is that when they do, recovery produces a result you can check with your own eyes.
 
 > **Verified numbers.** Steady-state end-to-end freshness holds **sub-minute** against the **120s** SLO with 3–17s batch durations on a 60s trigger (~4× headroom). An earlier 15s-trigger configuration measured 12.4s fresh — then degraded to ~8.5 minutes after three hours as streaming state grew; the fix (longer trigger + RocksDB state store) is documented in the repo and the blog post. Compaction reduced bronze from **1,334 → 72 files** and **14.3MB → 4.9MB**. In the recorded chaos demo, rows grew **11,937 → 18,032** across a SIGKILL with **zero duplicates** (20,418 = 20,418) and freshness recovered to **28s**. A cold start is reproducible with `make up && make spark-up && make verify-spark`.
 
 ## Cost and portability
 
-The local demonstration costs **$0/month by design**. Redpanda speaks Kafka's API and MinIO speaks the S3 API, so AWS is a configuration change—MSK or Kafka, S3, and a managed catalog/observability choice—not an application rewrite. Laptop throughput and process-level chaos are presented as such; they are not substituted for a claim about production scale.
+This whole thing costs **$0/month by design** — the most my wallet will ever approve of. Redpanda speaks Kafka's API and MinIO speaks the S3 API, so moving to AWS (MSK, S3, a managed catalog) is a configuration change, not an app rewrite. And to be clear: this runs on a laptop, and I present laptop numbers as laptop numbers — not pretend they prove production scale.
 
 ## Try the data
 
-The exported Parquet artifacts execute entirely in your browser with DuckDB-WASM. Start with a preset or edit the SQL directly.
+The exported Parquet files run entirely in your browser with DuckDB-WASM — no server, no setup. Start with a preset or write your own SQL and go poking around.
 
 <DuckDBQuery />

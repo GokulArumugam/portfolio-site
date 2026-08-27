@@ -23,3 +23,11 @@ npm install && npm run dev   # or: npm run build && npm run start
 ## Next ideas
 
 - Benchmark blog post #2 (spill regime), AWS deploy chapter, pin 3 repos on GitHub profile (manual).
+
+## Redesign v1 (Aug 2026) — BUILT locally, not committed/deployed
+
+- Home rewritten: split hero (airport photo, "Hi, I'm Gokul.", typewriter, IST local time, social links), "The short version" story section (self-taught, non-tech background → PhonePe ~400M txns/day, simple-systems belief), existing Selected work, new "Off the clock" grid (On repeat / F1 / NBA / Adventure trips cards), Writing.
+- New files: `lib/personal.ts` (socials, typewriter lines, nowPlaying track — edit this to personalize), `components/Typewriter.tsx`, `components/LocalTime.tsx`, `components/OffTheClock.tsx`, `app/icon.svg` (favicon: GA monogram, mint on dark). Photos in `public/images/` (gokul-hero, gokul-casual, blr-auto, adventure-river, now-playing).
+- `next.config.ts`: `output: "export"` + unoptimized images — static export verified, `out/` builds all 9 routes. Ready for GitHub Pages.
+- Socials used: X = x.com/gxxxlarx, LinkedIn = gokularumugam-data, GitHub = GokulArumugam.
+- Pending decisions for Gokul: set actual track in `lib/personal.ts`, commit + push (Vercel will also redeploy from main), create `GokulArumugam.github.io` repo + Actions workflow when ready to move off Vercel.

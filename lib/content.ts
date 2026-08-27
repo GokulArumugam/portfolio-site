@@ -1,3 +1,6 @@
+import Atlas, {
+  metadata as atlasMetadata,
+} from "@/content/projects/atlas.mdx";
 import PaymentsReconciliationEngine, {
   metadata as paymentsMetadata,
 } from "@/content/projects/payments-reconciliation-engine.mdx";
@@ -27,6 +30,11 @@ export interface ContentEntry {
 }
 
 const projects: ContentEntry[] = [
+  {
+    slug: "atlas",
+    metadata: atlasMetadata,
+    Content: Atlas,
+  },
   {
     slug: "real-time-wikipedia-edits-pipeline",
     metadata: wikipediaMetadata,
