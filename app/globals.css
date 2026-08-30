@@ -212,6 +212,23 @@ footer { display: flex; justify-content: space-between; gap: 0.75rem 1.5rem; fle
 .gh-chart { display: block; width: 100%; height: auto; }
 [data-theme="dark"] .gh-chart { filter: invert(1) hue-rotate(180deg) brightness(0.9); }
 
+/* contribution chart (build-time, both accounts combined) */
+:root {
+  --gh-l0: #ebedf0; --gh-l1: #9be9a8; --gh-l2: #40c463; --gh-l3: #30a14e; --gh-l4: #216e39;
+}
+[data-theme="dark"] {
+  --gh-l0: #161b22; --gh-l1: #033a16; --gh-l2: #196c2e; --gh-l3: #2ea043; --gh-l4: #56d364;
+}
+.gh-card-wrap { padding: 1rem 1.25rem; border: 1px solid var(--glass-border); border-radius: 0.75rem; background: var(--surface); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-shadow); overflow-x: auto; }
+.gh-chart-svg { display: block; width: 100%; height: auto; }
+.gh-chart-month { fill: var(--muted); font-size: 10px; font-family: "Ubuntu Mono", ui-monospace, monospace; }
+.gh-chart-meta { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.78rem; }
+.gh-day-0 { fill: var(--gh-l0); }
+.gh-day-1 { fill: var(--gh-l1); }
+.gh-day-2 { fill: var(--gh-l2); }
+.gh-day-3 { fill: var(--gh-l3); }
+.gh-day-4 { fill: var(--gh-l4); }
+
 /* writing / medium */
 .medium-list { display: grid; }
 .medium-post { display: flex; justify-content: space-between; align-items: baseline; gap: 1.25rem; padding: 0.8rem 0.25rem; border-bottom: 1px dashed var(--glass-border); }

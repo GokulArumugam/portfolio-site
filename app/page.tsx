@@ -6,6 +6,7 @@ import LocalTime from "@/components/LocalTime";
 import OffTheClock from "@/components/OffTheClock";
 import Toolbox from "@/components/Toolbox";
 import OpenSource from "@/components/OpenSource";
+import ContributionChart from "@/components/ContributionChart";
 import { posts, mediumProfile } from "@/lib/writing";
 
 export default function HomePage() {
@@ -56,10 +57,7 @@ export default function HomePage() {
           </div>
           <a className="subtle-link" href="https://github.com/GokulArumugam" target="_blank" rel="noopener noreferrer">@GokulArumugam →</a>
         </div>
-        <a className="gh-card" href="https://github.com/GokulArumugam" target="_blank" rel="noopener noreferrer">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="gh-chart" src="https://ghchart.rshah.org/0f7a5c/GokulArumugam" alt="GitHub contribution calendar for GokulArumugam" loading="lazy" width="828" height="128" />
-        </a>
+        <ContributionChart />
       </section>
 
       <section className="section" aria-labelledby="selected-work">
