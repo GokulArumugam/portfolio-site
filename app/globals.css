@@ -150,6 +150,21 @@ footer { display: flex; justify-content: space-between; gap: 0.75rem 1.5rem; fle
 .content-card p { color: var(--muted); font-size: 1rem; }
 .metric { margin-top: 2rem; color: var(--accent); font-size: 1.5rem; font-weight: 750; letter-spacing: -0.03em; }
 
+/* opensource projects */
+.oss-card { padding: 1.75rem; border: 1px solid var(--glass-border); border-radius: 0.75rem; background: var(--surface); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-shadow); }
+.oss-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.oss-head h3 { margin: 0; font-size: 1.55rem; line-height: 1.2; letter-spacing: -0.025em; }
+.oss-try { color: var(--accent); font-size: 0.95rem; font-weight: 600; white-space: nowrap; border-bottom: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); padding-bottom: 2px; transition: border-color 160ms ease; }
+.oss-try:hover { border-bottom-style: solid; }
+.oss-tagline { margin: 0.9rem 0 1.4rem; color: var(--foreground); font-size: 1.08rem; line-height: 1.65; max-width: 62ch; }
+.oss-video-wrap { position: relative; border: 1px solid var(--glass-border); border-radius: 0.6rem; overflow: hidden; background: #000; }
+.oss-video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+.oss-note { margin: 1.2rem 0 0; color: var(--muted); font-size: 0.98rem; line-height: 1.65; max-width: 75ch; }
+.oss-note b { color: var(--foreground); }
+.oss-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-top: 1.6rem; padding-top: 1.2rem; border-top: 1px dashed var(--glass-border); }
+.oss-more { color: var(--accent); font-size: 1rem; font-weight: 600; }
+.oss-foot .metric { margin-top: 0; font-size: 1.05rem; }
+
 /* personal sections */
 .hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3rem; align-items: start; }
 .hero-text { min-width: 0; }
@@ -323,6 +338,9 @@ footer { display: flex; justify-content: space-between; gap: 0.75rem 1.5rem; fle
   .hero-photo { width: 13rem; margin-top: 0; }
   .offclock-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card-grid { grid-template-columns: 1fr; }
+  .oss-card { padding: 1.1rem; }
+  .oss-head { align-items: flex-start; flex-direction: column; }
+  .oss-try { white-space: normal; }
   .listing-item { grid-template-columns: 1fr auto; }
   .listing-meta { grid-column: 1; }
   .prose table { display: block; overflow-x: auto; }

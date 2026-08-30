@@ -5,6 +5,7 @@ import Typewriter from "@/components/Typewriter";
 import LocalTime from "@/components/LocalTime";
 import OffTheClock from "@/components/OffTheClock";
 import Toolbox from "@/components/Toolbox";
+import OpenSource from "@/components/OpenSource";
 import { posts, mediumProfile } from "@/lib/writing";
 
 export default function HomePage() {
@@ -45,11 +46,13 @@ export default function HomePage() {
 
       <Toolbox />
 
+      <OpenSource />
+
       <section className="section" aria-labelledby="gh-activity">
         <div className="section-heading">
           <div className="section-title-row">
             <h2 id="gh-activity" className="section-title">github activity</h2>
-            <span className="section-index">(02)</span>
+            <span className="section-index">(03)</span>
           </div>
           <a className="subtle-link" href="https://github.com/GokulArumugam" target="_blank" rel="noopener noreferrer">@GokulArumugam →</a>
         </div>
@@ -63,7 +66,7 @@ export default function HomePage() {
         <div className="section-heading">
           <div className="section-title-row">
             <h2 id="selected-work" className="section-title">selected work</h2>
-            <span className="section-index">(03)</span>
+            <span className="section-index">(04)</span>
           </div>
           <Link className="subtle-link" href="/projects">All projects →</Link>
         </div>
@@ -83,7 +86,7 @@ export default function HomePage() {
         <div className="section-heading">
           <div className="section-title-row">
             <h2 id="writing" className="section-title">writing</h2>
-            <span className="section-index">(04)</span>
+            <span className="section-index">(05)</span>
           </div>
           <a className="subtle-link" href={mediumProfile} target="_blank" rel="noopener noreferrer">read on medium →</a>
         </div>
